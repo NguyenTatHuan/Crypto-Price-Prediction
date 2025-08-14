@@ -14,4 +14,4 @@ def predict():
     return jsonify({'coin_id': coin_id, 'currency': currency, 'predictions': predictions})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
