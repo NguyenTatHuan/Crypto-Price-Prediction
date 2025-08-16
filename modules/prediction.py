@@ -5,22 +5,29 @@ import time
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
 
+API_KEYS = ["CG-CiXq74m57raFnhxBi3jJttZU", "CG-XCpdrNnGo5mkPBjkgYtXLpQd"]
+current_key_index = 0
+
+def get_headers():
+    global current_key_index
+    key = API_KEYS[current_key_index]
+    current_key_index = (current_key_index + 1) % len(API_KEYS)
+    return {
+        "accept": "application/json",
+        "x-cg-demo-api-key": key
+    }
+
 def get_market_chart(coin_id, days, currency):
     end_timestamp = int(time.time())
     start_timestamp = end_timestamp - int(days) * 24 * 60 * 60
 
-    headers = {
-        "accept": "application/json",
-        "x-cg-demo-api-key": "CG-5Z2sfJRjG47odmmRR7kwFgVc"
-    }
-
-    ohlc_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={days}', headers=headers).json()
+    ohlc_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={days}', headers=get_headers()).json()
     ohlc = np.array(ohlc_data)
 
     date = time.strftime('%d-%m-%Y', time.gmtime(start_timestamp))
-    history_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/history?date={date}', headers=headers).json()
+    history_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/history?date={date}', headers=get_headers()).json()
     
-    market_data = requests.get(f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={currency}&ids={coin_id}', headers=headers).json()[0]
+    market_data = requests.get(f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={currency}&ids={coin_id}', headers=get_headers()).json()[0]
 
     X = ohlc[:, 0:5]
     y = ohlc[:, 4]
