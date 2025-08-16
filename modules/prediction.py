@@ -14,30 +14,17 @@ def get_market_chart(coin_id, days, currency):
         "x-cg-demo-api-key": "CG-5Z2sfJRjG47odmmRR7kwFgVc"
     }
 
-    ohlc_data = requests.get(
-        f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={days}',
-        headers=headers
-    ).json()
+    ohlc_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={days}', headers=headers).json()
     ohlc = np.array(ohlc_data)
 
     date = time.strftime('%d-%m-%Y', time.gmtime(start_timestamp))
-    history_data = requests.get(
-        f'https://api.coingecko.com/api/v3/coins/{coin_id}/history?date={date}',
-        headers=headers
-    ).json()
+    history_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/history?date={date}', headers=headers).json()
     
-    market_data = requests.get(
-        f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={currency}&ids={coin_id}',
-        headers=headers
-    ).json()[0]
+    market_data = requests.get(f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={currency}&ids={coin_id}', headers=headers).json()[0]
 
-    X = ohlc[:, [0, 4]]
+    X = ohlc[:, 0:5]
     y = ohlc[:, 4]
-    X = np.concatenate((
-        X,
-        np.full((len(X), 1), history_data['market_data']['current_price']['usd']),
-        np.full((len(X), 1), market_data['current_price'])
-    ), axis=1)
+    X = np.concatenate((X, np.full((len(X), 1), history_data['market_data']['current_price'][currency]), np.full((len(X), 1), market_data['current_price'])), axis=1)
 
     scaler = MinMaxScaler()
     X = scaler.fit_transform(X)
