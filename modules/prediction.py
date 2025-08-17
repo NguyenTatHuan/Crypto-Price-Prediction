@@ -1,48 +1,69 @@
 import requests
 import numpy as np
-import pandas as pd
-from prophet import Prophet
+from sklearn.linear_model import LinearRegression
+import time
+from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime, timedelta
-import math
+import itertools
 
-def get_market_chart(coin_id, days, currency):
-    headers = {
+API_KEYS = ["CG-CiXq74m57raFnhxBi3jJttZU", "CG-XCpdrNnGo5mkPBjkgYtXLpQd"]
+api_key_cycle = itertools.cycle(API_KEYS)
+
+def get_headers():
+    api_key = next(api_key_cycle)
+    return {
         "accept": "application/json",
-        "x-cg-demo-api-key": "CG-CiXq74m57raFnhxBi3jJttZU"
+        "x-cg-demo-api-key": api_key
     }
 
-    if days == 1:
-        ohlc_days, freq, periods = 1, '30min', 48
-    elif days <= 30:
-        ohlc_days, freq, periods = 30, '4h', days * 6
-    else:
-        ohlc_days, freq, periods = 365, '4D', math.ceil(days / 4)
+def get_market_chart(coin_id, days, currency):
+    end_timestamp = int(time.time())
+    start_timestamp = end_timestamp - int(days) * 24 * 60 * 60
 
-    ohlc_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={ohlc_days}', headers=headers).json()
-    if not ohlc_data or isinstance(ohlc_data, dict):
-        raise ValueError("Error fetching OHLC data.")
+    ohlc_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/ohlc?vs_currency={currency}&days={days}', headers=get_headers()).json()
     ohlc = np.array(ohlc_data)
 
-    df = pd.DataFrame({
-        "ds": pd.to_datetime(ohlc[:, 0], unit="ms"),
-        "y": ohlc[:, 4]
-    })
+    date = time.strftime('%d-%m-%Y', time.gmtime(start_timestamp))
+    history_data = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}/history?date={date}', headers=get_headers()).json()
+    
+    market_data = requests.get(f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={currency}&ids={coin_id}', headers=get_headers()).json()[0]
 
-    model = Prophet(daily_seasonality=True)
-    model.fit(df)
+    X = ohlc[:, 0:5]
+    y = ohlc[:, 4]
+    X = np.concatenate((X, np.full((len(X), 1), history_data['market_data']['current_price'][currency]), np.full((len(X), 1), market_data['current_price'])), axis=1)
 
-    future = model.make_future_dataframe(periods=periods, freq=freq)
-    forecast = model.predict(future)
+    scaler = MinMaxScaler()
+    X = scaler.fit_transform(X)
 
-    predictions = {}
-    if days <= 30:
-        start_index = -periods
-        for ds, yhat in zip(forecast['ds'][start_index:], forecast['yhat'][start_index:]):
-            predictions[str(ds)] = float(yhat)
+    model = LinearRegression()
+    model.fit(X, y)
+    y_pred = model.predict(X)
+
+    if days == 1:
+        step_hours = 0.5
+    elif days in [7, 14, 30]:
+        step_hours = 4
+    elif days in [90, 180, 365]:
+        step_hours = 96
     else:
-        start_date = datetime.now().date() + timedelta(days=1)
-        for i, yhat in enumerate(forecast['yhat'][-periods:]):
-            pred_date = start_date + timedelta(days=i*4)
-            predictions[str(pred_date)] = float(yhat)
+        step_hours = 24
 
+    start_date = datetime.now()
+    if step_hours == 0.5:
+        if start_date.minute < 30:
+            start_date = start_date.replace(minute=0, second=0, microsecond=0)
+        else:
+            start_date = start_date.replace(minute=30, second=0, microsecond=0)
+    else:
+        if start_date.minute > 0 or start_date.second > 0:
+            start_date = start_date.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        else:
+            start_date = start_date.replace(minute=0, second=0, microsecond=0)
+
+    dates = [
+        (start_date + timedelta(hours=i * step_hours)).strftime('%Y-%m-%d %H:%M:%S')
+        for i in range(len(y_pred))
+    ]
+
+    predictions = {date: pred for date, pred in zip(dates, y_pred)}
     return predictions
