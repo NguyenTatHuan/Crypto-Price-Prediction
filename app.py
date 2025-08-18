@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from modules.prediction import get_market_chart, get_headers
+from modules.prediction import get_market_chart
 import requests
 from flask_cors import CORS
 
@@ -10,7 +10,11 @@ CORS(app)
 def predict():
     data = request.json
     coin_id = data.get('coin_id')
-    coin_name = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}', headers=get_headers()).json().get('name', coin_id)
+    headers = {
+        "accept": "application/json",
+        "x-cg-demo-api-key": "CG-CiXq74m57raFnhxBi3jJttZU"
+    }
+    coin_name = requests.get(f'https://api.coingecko.com/api/v3/coins/{coin_id}', headers=headers).json().get('name', coin_id)
     days = data.get('days', 30)
     currency = data.get('currency', 'usd')
     predictions = get_market_chart(coin_id, days, currency)
