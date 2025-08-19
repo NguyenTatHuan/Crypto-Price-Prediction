@@ -17,7 +17,7 @@ def get_market_chart(coin_id, days_to_predict, currency):
     elif 2 <= days_to_predict <= 90:
         freq = "1h"
         periods = int(24 * days_to_predict)
-        api_days = min(90, days_to_predict)
+        api_days = 90
         add_hourly = True
     else:
         freq = "1D"
